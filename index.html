@@ -25,6 +25,7 @@
     justify-content: center;
     margin: 15px 0;
     flex-wrap: wrap;
+    max-width: 500px;
   }
   .letter {
     border: 2px solid #3a3a3c;
@@ -49,7 +50,7 @@
   #wordInput {
     font-size: 22px;
     padding: 10px;
-    width: 240px;
+    width: 260px;
     text-align: center;
     border: 2px solid #3a3a3c;
     border-radius: 6px;
@@ -61,7 +62,7 @@
   .word-list {
     margin-top: 20px;
     width: 100%;
-    max-width: 300px;
+    max-width: 320px;
     max-height: 200px;
     overflow-y: auto;
   }
@@ -117,6 +118,7 @@
   }
   #startScreen {
     margin-top: 100px;
+    text-align: center;
   }
 </style>
 </head>
@@ -152,6 +154,7 @@ let currentWord = [];
 let foundWords = new Set();
 let score = 0;
 let timer, timeLeft = 60;
+let currentMode = "basic";
 
 const lettersDiv = document.getElementById("letters");
 const wordInput = document.getElementById("wordInput");
@@ -164,7 +167,11 @@ fetch("words.txt")
   .then(response => response.text())
   .then(text => {
     dictionary = text.split("\n").map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
-    document.getElementById("startScreen").innerHTML = '<button onclick="startGame()">▶️ Start Game</button>';
+    document.getElementById("startScreen").innerHTML = `
+      <h2>Choose a Mode</h2>
+      <button onclick="startGame('basic')">▶️ Basic Mode</button>
+      <button onclick="startGame('terrible')">💀 Terrible Tens</button>
+    `;
   });
 
 function shuffleArray(array){
@@ -175,16 +182,19 @@ function shuffleArray(array){
   return array;
 }
 
-function pickValidSet() {
-  let valid = false, chosenSet = "";
-  while(!valid) {
-    const candidate = shuffleArray("ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('')).slice(0,5).join('');
-    let count=0;
-    for(let word of dictionary){
-      if(word.split('').every(l => candidate.includes(l.toUpperCase()))){
-        count++;
-      }
-      if(count>=5){ valid=true; chosenSet=candidate; break; }
+// Pick letters that guarantee at least 3 valid words
+function pickValidSet(size) {
+  let chosenSet = "";
+  let validWords = [];
+  
+  while(true) {
+    const candidate = shuffleArray("ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('')).slice(0,size).join('');
+    validWords = dictionary.filter(word => 
+      word.split('').every(l => candidate.includes(l.toUpperCase()))
+    );
+    if(validWords.length >= 3) { 
+      chosenSet = candidate; 
+      break; 
     }
   }
   return chosenSet;
@@ -228,11 +238,13 @@ function submitWord(){
   renderCurrentWord();
 }
 
-function startGame(){
+function startGame(mode){
+  currentMode = mode;
   document.getElementById("startScreen").style.display="none";
   document.getElementById("gameArea").style.display="block";
   score=0; foundWords.clear(); wordListDiv.innerHTML=""; scoreDisplay.textContent="Score: 0"; timeLeft=60;
-  letters=shuffleArray(pickValidSet().split(''));
+  let size = (mode === "basic") ? 5 : 10;
+  letters=shuffleArray(pickValidSet(size).split(''));
   displayLetters(letters);
   timerDisplay.textContent="⏳ "+timeLeft;
   timer=setInterval(()=>{
@@ -250,7 +262,11 @@ function showGameOver(){
 function restartGame(){
   document.getElementById("gameOverScreen").style.display="none";
   document.getElementById("startScreen").style.display="block";
-  document.getElementById("startScreen").innerHTML = '<button onclick="startGame()">▶️ Start Game</button>';
+  document.getElementById("startScreen").innerHTML = `
+    <h2>Choose a Mode</h2>
+    <button onclick="startGame('basic')">▶️ Basic Mode</button>
+    <button onclick="startGame('terrible')">💀 Terrible Tens</button>
+  `;
 }
 </script>
 </body>
