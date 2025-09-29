@@ -1,310 +1,76 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Letter Challenge</title>
-<style>
-  body {
-    font-family: 'Arial', sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: #121213;
-    color: #fff;
-    margin: 0;
-    padding: 0;
-    height: 100vh;
-  }
-
-  h1 {
-    margin: 10px 0 20px;
-    color: #f3ba2f;
-    font-size: 42px;
-    text-shadow: 2px 2px #000;
-    text-align: center;
-  }
-
-  /* Title screen card */
-  #startScreen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 30px;
-    border-radius: 12px;
-    background: #1e1e1e;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-    text-align: center;
-  }
-
-  #startScreen h2 {
-    margin-bottom: 20px;
-    color: #f3ba2f;
-  }
-
-  .letters {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin: 20px auto;
-    max-width: 500px;
-  }
-
-  .letter {
-    border: 2px solid #3a3a3c;
-    border-radius: 6px;
-    padding: 15px;
-    margin: 6px;
-    font-size: 22px;
-    width: 55px;
-    text-align: center;
-    cursor: pointer;
-    user-select: none;
-    background: #818384;
-    color: #fff;
-    font-weight: bold;
-    transition: all 0.2s ease;
-  }
-
-  .letter:hover {
-    background: #ffb74d;
-    transform: scale(1.1);
-    color: #000;
-  }
-
-  #wordInput {
-    font-size: 24px;
-    padding: 12px;
-    width: 280px;
-    text-align: center;
-    border: 2px solid #3a3a3c;
-    border-radius: 6px;
-    background: #1e1e1e;
-    color: #fff;
-    margin-top: 15px;
-    pointer-events: none;
-  }
-
-  .controls {
-    margin-top: 15px;
-    display: flex;
-    gap: 15px;
-    justify-content: center;
-  }
-
-  .word-list {
-    margin-top: 20px;
-    width: 100%;
-    max-width: 340px;
-    max-height: 220px;
-    overflow-y: auto;
-    text-align: left;
-  }
-
-  .word {
-    padding: 6px;
-    border-bottom: 1px solid #3a3a3c;
-  }
-
-  .score, .timer {
-    margin-top: 15px;
-    font-size: 26px;
-    font-weight: bold;
-    text-shadow: 1px 1px #000;
-  }
-
-  .score { color: #4caf50; }
-  .timer { color: #f44336; }
-
-  button {
-    padding: 14px 22px;
-    margin: 8px 0;
-    font-size: 20px;
-    border-radius: 8px;
-    border: none;
-    background: #538d4e;
-    color: #fff;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background 0.2s ease;
-  }
-
-  button:hover {
-    background: #81c784;
-  }
-
-  #gameArea {
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-  }
-
-  #gameOverScreen {
-    display: none;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(0,0,0,0.95);
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: 26px;
-    text-align: center;
-    z-index: 10;
-    padding: 20px;
-  }
-
-  #gameOverScreen button {
-    margin-top: 20px;
-  }
-</style>
-</head>
-<body>
-
-<h1>The Letter Challenge</h1>
-
-<div id="gameArea">
-  <div class="letters" id="letters"></div>
-  <input type="text" id="wordInput" readonly>
-  <div class="controls">
-    <button onclick="submitWord()">✔️ Submit</button>
-    <button onclick="undoLetter()">↩️ Undo</button>
-  </div>
-  <div class="timer" id="timer">⏳ 60</div>
-  <div class="score" id="score">Score: 0</div>
-  <div class="word-list" id="wordList"></div>
-</div>
-
-<div id="startScreen">
-  <p>Loading dictionary...</p>
-</div>
-
-<div id="gameOverScreen">
-  <div id="finalScore"></div>
-  <button onclick="backToMenu()">🏠 Main Menu</button>
-</div>
-
 <script>
-let dictionary = [];
-let letters = [];
-let currentWord = [];
-let foundWords = new Set();
-let score = 0;
-let timer, timeLeft = 60;
-let currentMode = "basic";
+let socket = null;
+let playerIndex = null;
+let roomId = null;
 
-const lettersDiv = document.getElementById("letters");
-const wordInput = document.getElementById("wordInput");
-const wordListDiv = document.getElementById("wordList");
-const scoreDisplay = document.getElementById("score");
-const timerDisplay = document.getElementById("timer");
+function connectWS(){
+  // Replace with your server URL after deployment
+  const url = (location.hostname === "localhost") ? "ws://localhost:8080" : "wss://YOUR_SERVER_DOMAIN";
+  socket = new WebSocket(url);
 
-// Load dictionary
-fetch("words.txt")
-  .then(response => response.text())
-  .then(text => {
-    dictionary = text.split("\n").map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
-    document.getElementById("startScreen").innerHTML = `
-      <h2>Choose a Mode</h2>
-      <button onclick="startGame('basic')">▶️ Basic Mode</button>
-      <button onclick="startGame('terrible')">💀 Terrible Tens</button>
-    `;
-  });
-
-function shuffleArray(array){
-  for(let i=array.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [array[i],array[j]]=[array[j],array[i]];
-  }
-  return array;
-}
-
-// Pick letters that guarantee at least 3 valid words
-function pickValidSet(size) {
-  while(true) {
-    const candidate = shuffleArray("ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('')).slice(0,size).join('');
-    let validWords = dictionary.filter(word => 
-      word.split('').every(l => candidate.includes(l.toUpperCase()))
-    );
-    if(validWords.length >= 3) return candidate;
-  }
-}
-
-function displayLetters(arr){
-  lettersDiv.innerHTML="";
-  arr.forEach(l=>{
-    const div=document.createElement("div");
-    div.classList.add("letter");
-    div.textContent=l;
-    div.onclick=()=>{ currentWord.push(l); renderCurrentWord(); };
-    lettersDiv.appendChild(div);
-  });
-}
-
-function renderCurrentWord(){
-  wordInput.value=currentWord.join('');
-}
-
-function undoLetter(){
-  currentWord.pop();
-  renderCurrentWord();
-}
-
-function submitWord(){
-  const word=currentWord.join('').toLowerCase();
-  if(timeLeft<=0) return;
-  if(word.length>=2 && dictionary.includes(word) && !foundWords.has(word)){
-    if([...word].every(l=>letters.includes(l.toUpperCase()))){
-      foundWords.add(word);
-      const wordDiv=document.createElement("div");
-      wordDiv.classList.add("word");
-      wordDiv.textContent=word;
-      wordListDiv.appendChild(wordDiv);
-      score+=word.length;
-      scoreDisplay.textContent="Score: "+score;
+  socket.addEventListener("open", () => { console.log("WS open"); });
+  socket.addEventListener("message", (ev) => {
+    const msg = JSON.parse(ev.data);
+    const { type, payload } = msg;
+    if(type === "matched" || type === "room-joined" || type === "game-start"){
+      // payload contains state and playerIndex
+      playerIndex = payload.playerIndex || payload.playerIndex;
+      roomId = payload.roomId || roomId;
+      applyState(payload.state);
+      // transition UI to game area
     }
+    if(type === "state-update"){
+      applyState(payload.state);
+    }
+    if(type === "waiting"){
+      // show "waiting for opponent" UI
+    }
+    if(type === "error"){
+      alert(payload.message || "Error from server");
+    }
+  });
+
+  socket.addEventListener("close", () => {
+    console.log("WS closed");
+    // show disconnected status
+  });
+}
+
+function quickMatch(mode){
+  if(!socket || socket.readyState !== WebSocket.OPEN) connectWS();
+  socket.addEventListener("open", () => {
+    socket.send(JSON.stringify({ type:"quick-match", payload:{ mode }}));
+  });
+  if(socket.readyState === WebSocket.OPEN){
+    socket.send(JSON.stringify({ type:"quick-match", payload:{ mode }}));
   }
-  currentWord=[];
-  renderCurrentWord();
 }
 
-function startGame(mode){
-  currentMode = mode;
-  document.getElementById("startScreen").style.display="none";
-  document.getElementById("gameArea").style.display="flex";
-  score=0; foundWords.clear(); wordListDiv.innerHTML=""; scoreDisplay.textContent="Score: 0"; timeLeft=60;
-  let size = (mode === "basic") ? 5 : 10;
-  letters=shuffleArray(pickValidSet(size).split(''));
-  displayLetters(letters);
-  timerDisplay.textContent="⏳ "+timeLeft;
-  clearInterval(timer);
-  timer=setInterval(()=>{
-    timeLeft--;
-    timerDisplay.textContent="⏳ "+timeLeft;
-    if(timeLeft<=0){ clearInterval(timer); showGameOver(); }
-  },1000);
+function joinRoom(code){
+  if(!socket || socket.readyState !== WebSocket.OPEN) connectWS();
+  socket.send(JSON.stringify({ type:"join-room", payload:{ roomId: code, mode: "versus" }}));
 }
 
-function showGameOver(){
-  document.getElementById("gameOverScreen").style.display="flex";
-  document.getElementById("finalScore").textContent="Game Over! Final Score: "+score;
+function submitWordOnline(word){
+  if(!socket || socket.readyState !== WebSocket.OPEN) { alert("Not connected"); return; }
+  socket.send(JSON.stringify({ type:"submit-word", payload:{ word, playerIndex }}));
 }
 
-function backToMenu(){
-  document.getElementById("gameOverScreen").style.display="none";
-  document.getElementById("gameArea").style.display="none";
-  document.getElementById("startScreen").style.display="flex";
-  document.getElementById("startScreen").innerHTML = `
-    <h2>Choose a Mode</h2>
-    <button onclick="startGame('basic')">▶️ Basic Mode</button>
-    <button onclick="startGame('terrible')">💀 Terrible Tens</button>
-  `;
+function applyState(state){
+  // update local UI from server state
+  letters = state.letters.slice();
+  displayLetters(letters, state.mode === 'versus' ? 4 : 1, state.mode === 'versus' ? 5 : letters.length);
+  // update scores
+  document.getElementById("p1Score").textContent = `🟢 Player 1: ${state.p1Score}`;
+  document.getElementById("p2Score").textContent = `🔵 Player 2: ${state.p2Score}`;
+  // update found words list
+  const wl = document.getElementById("wordList");
+  wl.innerHTML = "";
+  state.foundWords.forEach(f => {
+    const d = document.createElement("div");
+    d.textContent = (f.by === 1 ? "🟢 " : "🔵 ") + f.word;
+    d.className = "word";
+    wl.appendChild(d);
+  });
 }
 </script>
-</body>
-</html>
